@@ -54,7 +54,7 @@ def _make_text_safeish(text):
 
 
 # A shameless copy of Will Bond marvelous code in https://github.com/wbond/sublime_package_control
-class ThreadProgress():
+class ThreadProgress(object):
     def __init__(self, thread, message, success_message):
         self.thread = thread
         self.message = message
@@ -117,7 +117,7 @@ class CommandThread(threading.Thread):
 
 
 # A base for all commands
-class GitCommand:
+class GitCommand(object):
     def run_command(self, command, callback=None, show_status=True,
             filter_empty_args=True, **kwargs):
         if filter_empty_args:
@@ -179,7 +179,6 @@ class GitCommand:
         self.get_window().show_quick_panel(*args, **kwargs)
 
 
-
 # A base for all git commands that work with the entire repository
 class GitWindowCommand(GitCommand, sublime_plugin.WindowCommand):
     def active_view(self):
@@ -189,7 +188,6 @@ class GitWindowCommand(GitCommand, sublime_plugin.WindowCommand):
         view = self.active_view()
         if view and view.file_name() and len(view.file_name()) > 0:
             return view.file_name()
-
 
     # If there's no active view or the active view is not a file on the
     # filesystem (e.g. a search results view), we can infer the folder
@@ -245,7 +243,6 @@ class GitTextCommand(GitCommand, sublime_plugin.TextCommand):
         return self.view.window() or sublime.active_window()
 
 
-
 class GitBlameCommand(GitTextCommand):
     def run(self, edit):
         # somewhat custom blame command:
@@ -266,10 +263,10 @@ class GitBlameCommand(GitTextCommand):
         self.run_command(command, self.blame_done)
 
     def blame_done(self, result):
-        self.scratch(result, title="Git Blame")
+        self.scratch(result, title="Git Blame", syntax=plugin_file("Git Blame.tmLanguage"))
 
 
-class GitLog:
+class GitLog(object):
     def run(self, edit=None):
         # the ASCII bell (\a) is just a convenient character I'm pretty sure
         # won't ever come up in the subject of the commit (and if it does then
@@ -302,14 +299,16 @@ class GitLog:
     def details_done(self, result):
         self.scratch(result, title="Git Commit Details", syntax=plugin_file("Git Commit Message.tmLanguage"))
 
+
 class GitLogCommand(GitLog, GitTextCommand):
     pass
+
 
 class GitLogAllCommand(GitLog, GitWindowCommand):
     pass
 
 
-class GitShow:
+class GitShow(object):
     def run(self, edit=None):
         # GitLog Copy-Past
         self.run_command(
@@ -348,7 +347,7 @@ class GitShowAllCommand(GitShow, GitWindowCommand):
     pass
     
 
-class GitGraph:
+class GitGraph(object):
     def run(self, edit=None):
         self.run_command(
             ['git', 'log', '--graph', '--pretty=%h %aN %ci%d %s', '--abbrev-commit', '--no-color', '--decorate',
@@ -363,11 +362,12 @@ class GitGraph:
 class GitGraphCommand(GitGraph, GitTextCommand):
     pass
 
+
 class GitGraphAllCommand(GitGraph, GitWindowCommand):
     pass
 
 
-class GitDiff:
+class GitDiff (object):
     def run(self, edit=None):
         self.run_command(['git', 'diff', '--no-color', self.get_file_name()],
             self.diff_done)
@@ -378,8 +378,10 @@ class GitDiff:
             return
         self.scratch(result, title="Git Diff")
 
+
 class GitDiffCommand(GitDiff, GitTextCommand):
     pass
+
 
 class GitDiffAllCommand(GitDiff, GitWindowCommand):
     pass
@@ -591,6 +593,7 @@ class GitCheckoutCommand(GitTextCommand):
 class GitPullCommand(GitWindowCommand):
     def run(self):
         self.run_command(['git', 'pull'])
+
 
 class GitPushCommand(GitWindowCommand):
     def run(self):
