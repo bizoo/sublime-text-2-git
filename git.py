@@ -256,7 +256,7 @@ class GitBlameCommand(GitTextCommand):
             # just the lines we have a selection on
             begin_line, begin_column = self.view.rowcol(selection.begin())
             end_line, end_column = self.view.rowcol(selection.end())
-            lines = str(begin_line) + ',' + str(end_line)
+            lines = str(begin_line + 1) + ',' + str(end_line + 1)
             command.extend(('-L', lines))
 
         command.append(self.get_file_name())
@@ -429,6 +429,7 @@ class GitCommitCommand(GitWindowCommand):
     active_message = False
 
     def run(self):
+        self.working_dir = self.get_working_dir()
         self.run_command(
             ['git', 'status', '--untracked-files=no', '--porcelain'],
             self.porcelain_status_done
@@ -476,7 +477,7 @@ class GitCommitCommand(GitWindowCommand):
         self.message_file = message_file
         # and actually commit
         self.run_command(['git', 'commit', '-F', message_file.name],
-            self.commit_done)
+            self.commit_done, working_dir=self.working_dir)
 
     def commit_done(self, result):
         os.remove(self.message_file.name)
