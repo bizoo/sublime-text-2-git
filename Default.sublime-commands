@@ -28,6 +28,10 @@
         "command": "git_diff_all"
     }
     ,{
+        "caption": "Git: Diff Tool",
+        "command": "git_diff_tool"
+    }
+    ,{
         "caption": "Git: Commit",
         "command": "git_commit"
     }
@@ -38,6 +42,10 @@
     ,{
         "caption": "Git: Status",
         "command": "git_status"
+    }
+    ,{
+        "caption": "Git: New Branch",
+        "command": "git_new_branch"
     }
     ,{
         "caption": "Git: Change Branch",
@@ -74,6 +82,10 @@
     ,{
         "caption": "Git: Custom Command",
         "command": "git_custom"
+    }
+    ,{
+        "caption": "Git: Open...",
+        "command": "git_open_file"
     }
     ,{
         "caption": "Git: Show Current File",
