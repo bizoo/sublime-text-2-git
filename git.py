@@ -97,10 +97,14 @@ class CommandThread(threading.Thread):
         self.command = command
         self.on_done = on_done
         self.working_dir = working_dir
-        if "stdin" in kwargs: self.stdin = kwargs["stdin"]
-        else: self.stdin = None;
-        if "stdout" in kwargs: self.stdout = kwargs["stdout"]
-        else: self.stdout = subprocess.PIPE
+        if "stdin" in kwargs:
+            self.stdin = kwargs["stdin"]
+        else:
+            self.stdin = None
+        if "stdout" in kwargs:
+            self.stdout = kwargs["stdout"]
+        else:
+            self.stdout = subprocess.PIPE
         self.kwargs = kwargs
 
     def run(self):
@@ -279,11 +283,15 @@ class GitBlameCommand(GitTextCommand):
         # -C: retain blame when copying lines between files
         command = ['git', 'blame', '-w', '-M', '-C']
 
+        s = sublime.load_settings("Git.sublime-settings")
         selection = self.view.sel()[0]  # todo: multi-select support?
-        if not selection.empty():
+        if not selection.empty() or not s.get('blame_whole_file'):
             # just the lines we have a selection on
             begin_line, begin_column = self.view.rowcol(selection.begin())
             end_line, end_column = self.view.rowcol(selection.end())
+            # blame will fail if last line is empty and is included in the selection
+            if end_line > begin_line and end_column == 0:
+                end_line -= 1
             lines = str(begin_line + 1) + ',' + str(end_line + 1)
             command.extend(('-L', lines))
 
@@ -367,7 +375,7 @@ class GitShow(object):
         file_path = working_dir.replace(git_root(working_dir), '').lstrip(os.path.sep)
         file_name = os.path.join(file_path, self.get_file_name()).replace(os.path.sep, '/')
         self.run_command(
-            ['git', 'show', '%s:%s' %(ref, file_name)],
+            ['git', 'show', '%s:%s' % (ref, file_name)],
             self.details_done,
             ref=ref)
 
@@ -375,12 +383,14 @@ class GitShow(object):
         syntax = self.view.settings().get('syntax')
         self.scratch(result, title="%s:%s" % (ref, self.get_file_name()), syntax=syntax)
 
+
 class GitShowCommand(GitShow, GitTextCommand):
     pass
 
+
 class GitShowAllCommand(GitShow, GitWindowCommand):
     pass
-    
+
 
 class GitGraph(object):
     def run(self, edit=None):
@@ -759,14 +769,14 @@ class GitCustomCommand(GitTextCommand):
         command_splitted = ['git'] + shlex.split(command)
         print command_splitted
         self.run_command(command_splitted)
-	
-		
+
+
 class GitResetHeadCommand(GitTextCommand):
-	def run(self, edit):
-		self.run_command(['git', 'reset', 'HEAD', self.get_file_name()])
-	
-	def generic_done(self, result):
-		pass
+    def run(self, edit):
+        self.run_command(['git', 'reset', 'HEAD', self.get_file_name()])
+
+    def generic_done(self, result):
+        pass
 
 
 class GitClearAnnotationCommand(GitTextCommand):
@@ -860,7 +870,7 @@ class GitAnnotateCommand(GitTextCommand):
         typed_diff = {'x': [], '+': [], '-': []}
         for change_type, line in diff:
             if change_type == '-':
-                full_region = self.view.full_line(self.view.text_point(line-1, 0))
+                full_region = self.view.full_line(self.view.text_point(line - 1, 0))
                 position = full_region.begin()
                 for i in xrange(full_region.size()):
                     typed_diff[change_type].append(sublime.Region(position + i))
@@ -885,12 +895,12 @@ class GitAddSelectedHunkCommand(GitTextCommand):
         selection = []
         for sel in self.view.sel():
             selection.append({
-                "start":self.view.rowcol(sel.begin())[0] + 1,
-                "end":self.view.rowcol(sel.end())[0] + 1
+                "start": self.view.rowcol(sel.begin())[0] + 1,
+                "end": self.view.rowcol(sel.end())[0] + 1,
             })
-        
-        hunks = [{"diff":""}];
-        i = 0;
+
+        hunks = [{"diff":""}]
+        i = 0
         matcher = re.compile('^@@ -([0-9]*)(?:,([0-9]*))? \+([0-9]*)(?:,([0-9]*))? @@')
         for line in result.splitlines():
             if line.startswith('@@'):
@@ -898,20 +908,33 @@ class GitAddSelectedHunkCommand(GitTextCommand):
                 match = matcher.match(line)
                 start = int(match.group(3))
                 end = match.group(4)
-                if(end): end = start + int(end)
-                else: end = start
-                hunks.append({"diff":"", "start":start, "end":end})
+                if end:
+                    end = start + int(end)
+                else:
+                    end = start
+                hunks.append({"diff": "", "start": start, "end": end})
             hunks[i]["diff"] += line + "\n"
-        
+
         diffs = hunks[0]["diff"]
-        hunks.pop(0);
-        i = 0
+        hunks.pop(0)
+        selection_is_hunky = False
         for hunk in hunks:
             for sel in selection:
-                if(sel["end"] < hunk["start"]): continue
-                if(sel["start"] > hunk["end"]): continue
-                diffs += hunk["diff"]# + "\n\nEND OF HUNK\n\n"
-                i += 1
-        
-        if(i): self.run_command(['git', 'apply', '--cached'], stdin=diffs)
-        else: sublime.status_message("No selected hunk")
+                if sel["end"] < hunk["start"]:
+                    continue
+                if sel["start"] > hunk["end"]:
+                    continue
+                diffs += hunk["diff"]  # + "\n\nEND OF HUNK\n\n"
+                selection_is_hunky = True
+
+        if selection_is_hunky:
+            self.run_command(['git', 'apply', '--cached'], stdin=diffs)
+        else:
+            sublime.status_message("No selected hunk")
+
+
+class GitCommitSelectedHunk(GitAddSelectedHunkCommand):
+    def run(self, edit):
+        self.run_command(['git', 'diff', '--no-color', self.get_file_name()], self.cull_diff)
+        self.get_window().run_command('git_commit')
+
