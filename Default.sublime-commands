@@ -114,6 +114,7 @@
     ,{
         "caption": "Git: Add Selected Hunk",
         "command": "git_add_selected_hunk"
+    }
     ,{
         "caption": "Git: Show Current File",
         "command": "git_show"
