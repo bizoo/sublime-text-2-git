@@ -165,9 +165,6 @@ class GitCommand(object):
         ThreadProgress(thread, message, '')
 
     def generic_done(self, result):
-        if not result.strip():
-            return
-
         if self.may_change_files and self.active_view() and self.active_view().file_name():
             if self.active_view().is_dirty():
                 result = "WARNING: Current view is dirty.\n\n"
@@ -178,6 +175,9 @@ class GitCommand(object):
                 self.active_view().run_command('revert')
                 do_when(lambda: not self.active_view().is_loading(), lambda: self.active_view().set_viewport_position(position, False))
                 # self.active_view().show(position)
+
+        if not result.strip():
+            return
         self.panel(result)
 
     def _output_to_view(self, output_file, output, clear=False,
@@ -523,7 +523,12 @@ class GitCommitCommand(GitWindowCommand):
             self.panel("Nothing to commit")
             return
         # Okay, get the template!
-        self.run_command(['git', 'diff', '--staged'], self.diff_done)
+        s = sublime.load_settings("Git.sublime-settings")
+        if s.get("verbose_commits"):
+            self.run_command(['git', 'diff', '--staged'], self.diff_done)
+        else:
+            self.run_command(['git', 'status'], self.diff_done)
+
 
     def diff_done(self, result):
         template = "\n".join([
@@ -542,6 +547,7 @@ class GitCommitCommand(GitWindowCommand):
         msg.sel().clear()
         msg.sel().add(sublime.Region(0, 0))
         GitCommitCommand.active_message = self
+
 
     def message_done(self, message):
         # filter out the comments (git commit doesn't do this automatically)
@@ -604,8 +610,9 @@ class GitStatusCommand(GitWindowCommand):
     def panel_followup(self, picked_status, picked_file, picked_index):
         # split out solely so I can override it for laughs
 
+        s = sublime.load_settings("Git.sublime-settings")
         root = git_root(self.get_working_dir())
-        if picked_status == '??':
+        if picked_status == '??' or s.get('status_opens_file'):
             self.window.open_file(os.path.join(root, picked_file))
         else:
             self.run_command(['git', 'diff', '--no-color', '--', picked_file.strip('"')],
@@ -748,9 +755,38 @@ class GitPullCommand(GitWindowCommand):
         self.run_command(['git', 'pull'], callback=self.panel)
 
 
+class GitPullCurrentBranchCommand(GitWindowCommand):
+    command_to_run_after_describe = 'pull'
+
+    def run(self):
+        self.run_command(['git', 'describe', '--contains',  '--all', 'HEAD'], callback=self.describe_done)
+
+    def describe_done(self, result):
+        self.current_branch = result.strip()
+        self.run_command(['git', 'remote'], callback=self.remote_done)
+
+    def remote_done(self, result):
+        self.remotes = result.rstrip().split('\n')
+        if len(self.remotes) == 1:
+            self.panel_done()
+        else:
+            self.quick_panel(self.remotes, self.panel_done, sublime.MONOSPACE_FONT)
+
+    def panel_done(self, picked=0):
+        if picked < 0 or picked >= len(self.remotes):
+            return
+        self.picked_remote = self.remotes[picked]
+        self.picked_remote = self.picked_remote.strip()
+        self.run_command(['git', self.command_to_run_after_describe, self.picked_remote, self.current_branch])
+
+
 class GitPushCommand(GitWindowCommand):
     def run(self):
         self.run_command(['git', 'push'], callback=self.panel)
+
+
+class GitPushCurrentBranchCommand(GitPullCurrentBranchCommand):
+    command_to_run_after_describe = 'push'
 
 
 class GitCustomCommand(GitTextCommand):
@@ -787,6 +823,14 @@ class GitClearAnnotationCommand(GitTextCommand):
         self.view.erase_regions('git.changes.-')
 
 
+class GitToggleAnnotationsCommand(GitTextCommand):
+    def run(self, view):
+        if self.active_view().settings().get('live_git_annotations'):
+            self.view.run_command('git_clear_annotation')
+        else:
+            self.view.run_command('git_annotate')
+
+
 class GitAnnotationListener(sublime_plugin.EventListener):
     def on_modified(self, view):
         if not view.settings().get('live_git_annotations'):
@@ -804,7 +848,7 @@ class GitAnnotateCommand(GitTextCommand):
     #    output is then parsed and regions are set accordingly.
     def run(self, view):
         # If the annotations are already running, we dont have to create a new tmpfile
-        if self.active_view().settings().get('live_git_annotations'):
+        if hasattr(self, "tmp"):
             self.compare_tmp(None)
             return
         self.tmp = tempfile.NamedTemporaryFile()
@@ -938,3 +982,18 @@ class GitCommitSelectedHunk(GitAddSelectedHunkCommand):
         self.run_command(['git', 'diff', '--no-color', self.get_file_name()], self.cull_diff)
         self.get_window().run_command('git_commit')
 
+        
+
+class GitGuiCommand(GitTextCommand):
+    def run(self, edit):
+        command = ['git', 'gui']
+        self.run_command(command)
+
+
+class GitGitkCommand(GitTextCommand):
+    def run(self, edit):
+        command = ['gitk']
+        self.run_command(command)
+            
+                        
+    
